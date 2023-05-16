@@ -17,6 +17,13 @@
 //#define CONFIG_PERSONAS 1
 //#define _PROC_HAS_SCHEDINFO_ 1
 
+////////////通过下面的开关去编译编译对应的版本
+// #define IPHONE8_IOS_13_4
+// #define IPHONE8PLUS_IOS_13_6
+#define IPHONE6_IOS_12_5_5
+//#define IPHONE7_IOS_14_1
+
+
 typedef char command_t[MAXCOMLEN + 1];
 typedef char proc_name_t[2*MAXCOMLEN + 1];
 typedef void * lck_mtx_t;
@@ -84,7 +91,22 @@ struct  proc {
 
 #define p_rlimit        p_limit->pl_rlimit
     
+    #ifdef IPHONE8_IOS_13_4
     void * unknow0[7];        //和实际内存的中偏移不符，所以加了unknow0填充
+    #endif
+
+    #ifdef IPHONE8PLUS_IOS_13_6
+    void * unknow0[7];        //和实际内存的中偏移不符，所以加了unknow0填充
+    #endif
+
+    #ifdef IPHONE6_IOS_12_5_5
+    void * unknow0[6];        //和实际内存的中偏移不符，所以加了unknow0填充
+    #endif
+
+    #ifdef IPHONE7_IOS_14_1
+    void * unknow0[4];        //和实际内存的中偏移不符，所以加了unknow0填充
+    #endif
+
 
 	struct  plimit *p_olimit;               /* old process limits  - not inherited by child  (PL) */
 	int             p_siglist;              /* signals captured back from threads */
@@ -279,7 +301,37 @@ struct  proc {
 //iphone8  ios 13.4  kernel
 // #define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 19.4.0: Mon Feb 24 22:04:29 PST 2020; root:xnu-6153.102.3~1/RELEASE_ARM64_T8015"
 //iphone8 plus  ios 13.6  kernel
+//#define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 19.6.0: Sat Jun 27 04:36:08 PDT 2020; root:xnu-6153.142.1~4/RELEASE_ARM64_T8015"
+
+/// iphone6  ios 12.5.5 kernel
+//#define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 18.7.0: Thu Sep 16 20:47:11 PDT 2021; root:xnu-4903.272.4~1/RELEASE_ARM64_T7000"
+/// iphone7  ios 14.1 kernel
+
+#ifdef IPHONE8_IOS_13_4
+#define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 19.4.0: Mon Feb 24 22:04:29 PST 2020; root:xnu-6153.102.3~1/RELEASE_ARM64_T8015"
+#define VERSION_ADDR 0x2FB64
+#define KERNEL_PORC_ADDR 0x226AF60
+#endif
+
+#ifdef IPHONE8PLUS_IOS_13_6
 #define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 19.6.0: Sat Jun 27 04:36:08 PDT 2020; root:xnu-6153.142.1~4/RELEASE_ARM64_T8015"
+#define VERSION_ADDR 0x2FFC4
+#define KERNEL_PORC_ADDR 0x2252DB0
+#endif
+
+#ifdef IPHONE6_IOS_12_5_5
+#define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 18.7.0: Thu Sep 16 20:47:11 PDT 2021; root:xnu-4903.272.4~1/RELEASE_ARM64_T7000"
+#define VERSION_ADDR 0x25C04
+#define KERNEL_PORC_ADDR 0x1A4FA20
+#endif
+
+#ifdef IPHONE7_IOS_14_1
+#define TARGET_KERNELCACHE_VERSION_STRING "@(#)VERSION: Darwin Kernel Version 20.0.0: Wed Sep 30 03:24:41 PDT 2020; root:xnu-7195.0.46~41/RELEASE_ARM64_T8010"
+#define VERSION_ADDR 0x3669C
+#define KERNEL_PORC_ADDR 0x104240
+#endif
+
+
 
 #define kernel_read(address, data, size) kread(address, data, size)
 #define kernel_write(address, data, size) kwrite(address, data, size)
@@ -291,9 +343,19 @@ uint64_t kernel_read64(uint64_t address) {
 	return val;
 }
 
+void printhex(unsigned char* buf, int size){
+	int i = 0;
+	printf("\n");
+	for(i = 0; i < size; i++){
+		printf("%02X", buf[i]);
+	}
+	printf("\n");
+}
+
 int main() {
 	uint64_t kb;
 	kbase(&kb);
+	//kb = kb - 0x1c;
 	printf("kbase: 0x%llx\n" , kb);
 	for (size_t i = 0; i < 8; i++) {
 		printf("%016llx\n", kernel_read64(kb + 8 * i));
@@ -301,7 +363,14 @@ int main() {
 	//iphone8  ios 13.4  kernel
     // uint64_t versionstraddr = kb + 0x2FB64;
 	//iphone8 plus  ios 13.6  kernel
-	uint64_t versionstraddr = kb + 0x2FFC4;
+	//uint64_t versionstraddr = kb + 0x2FFC4;
+
+	// iphone 6 ios 12.5.5 kernel
+	//uint64_t versionstraddr = kb + 0x25C04;
+
+	// iphone 7 ios 14.1 kernel
+	uint64_t versionstraddr = kb + VERSION_ADDR;
+
     char versionstr[256];
     if(!kernel_read(versionstraddr, (void *)&versionstr, sizeof(versionstr)))
     {
@@ -311,15 +380,23 @@ int main() {
             printf("kernel cache hit\n");
             //iphone8  ios 13.4  kernproc 
             // uint64_t kernel_proc0 = kernel_read64(kb + 0x226AF60);
-			uint64_t kernel_proc0 = kernel_read64(kb + 0x2252DB0);
-			//iphone8 plus  ios 13.6  kernproc
+            //iphone8 plus  ios 13.6  kernproc
+			//uint64_t kernel_proc0 = kernel_read64(kb + 0x2252DB0);
+            // iphone 6 ios 12.5.5 kernel
+			// uint64_t kernel_proc0 = kernel_read64(kb + 0x1A4FA20);
+            // iphone 7 ios 14.1 kernel
+			uint64_t kernel_proc0 = kernel_read64(kb + KERNEL_PORC_ADDR);
+
+			
             struct proc * proc0 =  (struct proc *)malloc(sizeof(struct proc));
+            
 
             if(kernel_read(kernel_proc0, proc0, sizeof(struct proc)))
             {
                 printf("proc0 read failed\n");
                 return -1;
             }
+            //printhex((unsigned char*)proc0, sizeof(struct proc));
              printf("uniqueid offset 0x%llx  comm offset 0x%llx \n",(int64_t)&(proc0->p_uniqueid) - (int64_t)proc0, (int64_t)&(proc0->p_comm)- (int64_t)proc0);
 
             struct proc * proc1 =  (struct proc *)malloc(sizeof(struct proc));
@@ -330,15 +407,24 @@ int main() {
                     printf("procnext read failed\n");
                     return -1;
                 }else{
+                	//printhex((unsigned char*)proc1, sizeof(struct proc));
                     if(proc1->p_list.le_prev == 0)
                     {
                         printf("proc1->p_list.le_prev == 0\n");
                         break;
                     }
+                    if(proc1->p_uniqueid > 0x100000){
+                    	printf("proc1->p_uniqueid > 0x100000\n");
+                        break;
+                    }
                     int64_t lflagoffset = (int64_t)&(proc1->p_lflag) - (int64_t)proc1;
                     int lflagvalue = proc1->p_lflag;
-                    printf("(%llu)%s  proc = 0x%llx   lflag = 0x%x  lflag offset = 0x%llx"
+                    printf("pid =(%llu)%s  proc = 0x%llx   lflag = 0x%x  lflag offset = 0x%llx"
+                    	#ifdef IPHONE6_IOS_12_5_5
+                        ,proc1->p_pid, 
+                        #else
                         ,proc1->p_uniqueid, 
+                        #endif
                         proc1->p_comm,
                         preptr,lflagvalue,lflagoffset);
 
